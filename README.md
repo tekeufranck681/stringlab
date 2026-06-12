@@ -26,6 +26,7 @@ The goal is to make the abstract machinery of computation theory concrete and ob
   - [Everyday Docker commands](#everyday-docker-commands)
 - [Frontend Setup](#frontend-setup)
 - [Running the Full App](#running-the-full-app)
+- [Collaboration & Git Workflow](#collaboration--git-workflow)
 - [Troubleshooting](#troubleshooting)
 
 ---
@@ -356,6 +357,77 @@ Then open the frontend at **<http://localhost:5173>**. It talks to the backend A
 | Backend API | <http://localhost:8000> |
 | API docs (Swagger) | <http://localhost:8000/docs> |
 | Adminer (DB UI) | <http://localhost:8080> |
+
+---
+
+## Collaboration & Git Workflow
+
+We work as a team on a shared repository, so a few simple rules keep everyone's work safe and avoid painful merge conflicts. Please read this before pushing anything.
+
+### Branches
+
+| Branch | Purpose | Push directly? |
+|---|---|---|
+| `main` | **Stable, demo-ready code only.** This is what we present. | ❌ **Never** — protected |
+| `dev`  | **Integration branch.** Everyone's day-to-day work lands here. | ✅ Yes (after pulling) |
+
+> ⚠️ **Never push directly to `main`.** Code reaches `main` only by merging `dev` into it once a milestone is stable. If `main` breaks, the demo breaks.
+
+### The golden rule: always pull before you write or push
+
+Before starting new work **and** before pushing, sync with the remote so you build on everyone else's latest changes:
+
+```bash
+git checkout dev
+git pull origin dev      # get the latest before you start coding
+```
+
+When you're ready to share your work:
+
+```bash
+git pull origin dev      # pull AGAIN in case teammates pushed while you worked
+git add .
+git commit -m "clear message describing what you changed"
+git push origin dev
+```
+
+> 💡 Pulling before pushing means Git merges others' changes into yours *locally* (where you can fix conflicts calmly), instead of rejecting your push.
+
+### Feature branches (optional)
+
+The app is small, so working directly on `dev` is fine for quick changes. For anything larger — or if two people touch the same area — branch off `dev` so your work stays isolated until it's ready:
+
+```bash
+git checkout dev
+git pull origin dev
+git checkout -b feat/kmp-animation     # create your feature branch
+# ... write code, commit as you go ...
+git push origin feat/kmp-animation
+```
+
+Then open a **Pull Request** on GitHub targeting `dev` (not `main`) so a teammate can glance at it before it merges.
+
+**Branch naming convention:**
+
+| Prefix | Use for | Example |
+|---|---|---|
+| `feat/` | A new feature | `feat/edit-distance-trace` |
+| `fix/`  | A bug fix | `fix/cors-credentials` |
+| `chore/`| Tooling, config, docs | `chore/update-readme` |
+
+### Commit messages
+
+Write short, present-tense messages that say *what changed and why*:
+
+- ✅ `add KMP failure-table computation` / `fix Adminer server hostname in README`
+- ❌ `stuff` / `update` / `asdf`
+
+### Quick checklist before every push
+
+1. `git pull origin dev` — am I up to date?
+2. Does the backend still start? (`docker compose -f docker-compose.dev.yml up`)
+3. Are my commit messages clear?
+4. Am I pushing to `dev` (or a `feat/` branch), **never** `main`?
 
 ---
 
