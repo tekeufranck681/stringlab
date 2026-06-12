@@ -1,0 +1,69 @@
+version: "3.9"
+
+services:
+
+  # -------------------------
+  # BACKEND (FASTAPI)
+  # -------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: stringlab-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env.development
+
+    ports:
+      - "8000:8000"
+
+    depends_on:
+      - stringlab-db
+
+    networks:
+      - backend
+
+  # -------------------------
+  # POSTGRES DATABASE
+  # -------------------------
+  stringlab-db:
+    image: postgres:16
+    container_name: stringlab-postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: stringlab_user
+      POSTGRES_PASSWORD: stringlabpass6789.
+      POSTGRES_DB: stringlab_db
+
+    volumes:
+      - stringlab_pg_data:/var/lib/postgresql/data
+
+    networks:
+      - backend
+
+
+  # -------------------------
+  # ADMINER (DB UI)
+  # -------------------------
+  adminer:
+    image: adminer:latest
+    container_name: stringlab-adminer
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    depends_on:
+      - stringlab-db
+
+    networks:
+      - backend
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  stringlab_pg_data:
+
