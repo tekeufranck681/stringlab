@@ -26,6 +26,17 @@ alembic upgrade head
 echo "✅ Migrations complete"
 
 # -----------------------
+# SEED CATALOGUE DATA
+# -----------------------
+# Idempotent: rows are matched by slug and updated in place, so this is safe to
+# run on every startup and never duplicates data.
+echo "🌱 Seeding catalogue..."
+
+python -m app.database.seed
+
+echo "✅ Seed complete"
+
+# -----------------------
 # START SERVER
 # -----------------------
 if [ "$ENV" = "production" ]; then
