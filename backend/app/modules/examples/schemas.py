@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from typing import Any
 
 from app.core.schemas import BaseSchema
@@ -8,7 +9,7 @@ from app.core.schemas import BaseSchema
 class ExampleSchema(BaseSchema):
     """A curated example input for an operation (contract §1.3)."""
 
-    id: int
+    id: uuid.UUID
     label: str
     # Field values keyed by input-field name.
     inputs: dict[str, Any]

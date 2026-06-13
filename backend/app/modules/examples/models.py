@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import uuid
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -17,8 +18,10 @@ class Example(Base):
 
     __tablename__ = "examples"
 
-    example_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    operation_id: Mapped[int] = mapped_column(
+    example_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, primary_key=True, default=uuid.uuid4
+    )
+    operation_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("operations.operation_id"), nullable=False
     )
     label: Mapped[str] = mapped_column(String(120), nullable=False)

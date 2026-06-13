@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import uuid
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import ForeignKey, Integer, String, Text, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -18,7 +19,9 @@ class Category(Base):
 
     __tablename__ = "categories"
 
-    category_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, primary_key=True, default=uuid.uuid4
+    )
     slug: Mapped[str] = mapped_column(String(40), unique=True, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(80), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
@@ -26,7 +29,7 @@ class Category(Base):
 
     operations: Mapped[list[Operation]] = relationship(
         back_populates="category",
-        order_by="Operation.operation_id",
+        order_by="Operation.slug",
         cascade="all, delete-orphan",
     )
 
@@ -36,10 +39,12 @@ class Operation(Base):
 
     __tablename__ = "operations"
 
-    operation_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    operation_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, primary_key=True, default=uuid.uuid4
+    )
     slug: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
-    category_id: Mapped[int] = mapped_column(
+    category_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("categories.category_id"), nullable=False
     )
     description: Mapped[str] = mapped_column(Text, nullable=False)
