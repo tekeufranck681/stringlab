@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -18,7 +19,7 @@ def _iso_z(dt: datetime) -> str:
 class RunResult(BaseSchema):
     """The response of an execution (contract §1.4)."""
 
-    run_id: int
+    run_id: uuid.UUID
     operation: str
     result: dict[str, Any]
     explanation: str
@@ -36,7 +37,7 @@ class RunResult(BaseSchema):
 class RunListItem(BaseSchema):
     """A lightweight history entry (contract §4.5)."""
 
-    run_id: int
+    run_id: uuid.UUID
     operation: str
     inputs: dict[str, Any]
     result_summary: str
