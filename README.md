@@ -212,41 +212,107 @@ When you see Uvicorn report `Application startup complete`, the API is live.
 
 ### 4. Database migrations (Alembic)
 
-**Alembic** is the tool that creates and updates database tables in versioned, repeatable steps (think "Git for your database schema"). Migration files live in [`backend/alembic/versions/`](backend/alembic/).
+**Alembic** is the tool that creates and updates database tables in versioned, repeatable steps (think "Git for your database schema"). Migration files live in [`backend/alembic/versions/`](backend/alembic/) and are **committed to Git**.
 
-**You normally don't run migrations by hand** — the container applies them automatically on every startup (step 3 above). You only touch Alembic directly when you **change a database model** and need to record that change.
+**How migrations flow through the project:**
 
-Because the database tooling lives inside the container, run Alembic commands *through* Docker with `docker compose exec`:
+- You **generate** migration files **locally**, on your own machine, against a local Postgres.
+- You **commit** those files. The `Dockerfile` copies them into the image.
+- On container startup, [`entrypoint.sh`](backend/entrypoint.sh) runs `alembic upgrade head` automatically, applying those same committed files to the container's database.
 
-**a) After you add or modify a SQLAlchemy model** — generate a new migration (autogenerate compares your models to the live DB and writes the difference):
+So the container **never generates** migrations — it only **applies** the ones you committed. That keeps your local database and the Docker database in perfect sync, because they replay the exact same migration files. **You only run the steps below when you add or change a SQLAlchemy model.**
+
+#### Step-by-step: generating a migration locally
+
+**1. Create your local environment file.** Copy the example and confirm it points at `localhost` (not the container hostname), since you'll run Alembic from your own machine:
 
 ```bash
-docker compose -f docker-compose.dev.yml exec backend \
-  alembic revision --autogenerate -m "describe your change here"
+cp backend/.env.example backend/.env.local
+```
+
+`backend/.env.local` should contain (note `localhost`):
+
+```ini
+DATABASE_URL=postgresql+asyncpg://stringlab_user:stringlabpass6789.@localhost:5432/stringlab_db
+ENV=development
+DB_HOST=localhost
+DB_PORT=5432
+POSTGRES_USER=stringlab_user
+POSTGRES_PASSWORD=stringlabpass6789.
+```
+
+> The local app reads `backend/.env.local`; the Docker container reads `backend/.env.development`. Same credentials, different host (`localhost` vs `stringlab-db`).
+
+**2. Start a local Postgres with the *same* credentials.** Using identical credentials to the container means zero connection-string juggling. The simplest way is a throwaway Postgres container published on `localhost:5432`:
+
+```bash
+docker run --name stringlab-local-db \
+  -e POSTGRES_USER=stringlab_user \
+  -e POSTGRES_PASSWORD=stringlabpass6789. \
+  -e POSTGRES_DB=stringlab_db \
+  -p 5432:5432 \
+  -d postgres:16
+```
+
+(Already have a Postgres on `localhost:5432` with those credentials? Skip this.) Stop/remove it later with `docker stop stringlab-local-db && docker rm stringlab-local-db`.
+
+**3. Set up the Python virtual environment** (first time only), then start the backend locally to confirm the models import and the database connects:
+
+```bash
+cd backend
+
+python3 -m venv env                 # create the virtual environment
+source env/bin/activate             # activate it (Windows: env\Scripts\activate)
+pip install -r requirements.txt     # install dependencies
+
+# Start the server — it will connect to your local Postgres and confirm startup
+uvicorn app.main:app --reload
+```
+
+If you see `Database connection OK` and `Application startup complete`, you're wired up correctly. Leave this running (or stop it with `Ctrl+C` — the next step doesn't need it).
+
+**4. Generate and apply the migration.** In the `backend/` folder, with the virtual environment activated:
+
+```bash
+# Generate a new migration — autogenerate diffs your models against the local DB
+alembic revision --autogenerate -m "describe your change here"
+
+# Apply it to your local database
+alembic upgrade head
 ```
 
 > ⚠️ Any new model must be **imported in [`backend/app/database/base.py`](backend/app/database/base.py)** so Alembic can "see" it. If autogenerate produces an empty migration, this import is usually what's missing.
 
-**b) Apply pending migrations** to the database (also runs automatically on startup):
+**5. Review and commit** the generated file in `backend/alembic/versions/`. Autogenerate is a helpful draft, not gospel — read it before committing. Once pushed, every teammate's container picks it up and applies it automatically on the next `up`.
+
+#### Useful inspection commands
+
+Run these locally (virtual environment activated, from `backend/`):
 
 ```bash
-docker compose -f docker-compose.dev.yml exec backend alembic upgrade head
+alembic current      # show the current applied revision
+alembic history      # show the full migration history
+alembic downgrade -1 # roll back the most recent migration
 ```
 
-**c) Useful inspection commands:**
+#### Why this local-first approach?
+
+Generating migrations **inside** the container would write the new file into the container's filesystem, where it's awkward to get back out and easy to lose. By generating locally and committing the file, the migration becomes the **single source of truth**: your local database and every container apply the identical committed files, so the schema can never drift between local development and the Dockerised backend.
+
+#### Resetting after a migration history rewrite
+
+Alembic tracks which revision a database is on in an `alembic_version` table. Normally you only ever *add* migrations, so this never matters. But occasionally — early in the project — a migration is **rewritten or replaced** (for example, squashing several migrations into a fresh initial one, or a sweeping schema change like switching all IDs to UUIDs). When that happens, a database still pointing at a now-deleted revision can no longer upgrade cleanly: Alembic looks for a revision file that isn't there.
+
+Because the database lives in a Docker **volume** (`stringlab_pg_data`) that survives a normal `down`, you must wipe that volume to start from a clean slate:
 
 ```bash
-# Show the current applied revision
-docker compose -f docker-compose.dev.yml exec backend alembic current
-
-# Show full migration history
-docker compose -f docker-compose.dev.yml exec backend alembic history
-
-# Roll back the most recent migration
-docker compose -f docker-compose.dev.yml exec backend alembic downgrade -1
+docker compose -f docker-compose.dev.yml down -v      # ⚠️ deletes all DB data
+docker compose -f docker-compose.dev.yml up --build    # re-migrates + re-seeds from scratch
 ```
 
-> 📝 **Always commit the generated file** in `backend/alembic/versions/` to Git, and review it before applying — autogenerate is a helpful draft, not gospel.
+The same applies to your **local** Postgres (the one you generate migrations against): drop and recreate the database, or `alembic downgrade base` before re-applying, so it isn't stranded on a missing revision.
+
+> ⚠️ `down -v` is destructive — it erases every run in the history table. That is fine in development (the catalogue re-seeds automatically and runs are disposable), but **never** do this against data you want to keep.
 
 ### 5. Inspect the database with Adminer
 
@@ -266,6 +332,8 @@ docker compose -f docker-compose.dev.yml exec backend alembic downgrade -1
 3. Click **Login**. You can now browse the `categories`, `operations`, `examples`, and `runs` tables.
 
 > 🔎 Use `stringlab-db` (the container name) as the **Server**, *not* `localhost` — Adminer runs inside the same Docker network as Postgres and reaches it by service name.
+
+> 🗄️ **Two databases, don't mix them up.** This Adminer (the one in the Docker stack) talks to the **container database** via Server `stringlab-db`. The **local Postgres** you started for generating migrations (step 4) is a *separate* database, reachable from your machine at **`localhost:5432`** with the same credentials — connect to it with a local client (`psql`, a DB GUI, or your own Adminer pointed at `localhost`). They share credentials but hold independent data.
 
 ### 6. Verify the API is running
 
