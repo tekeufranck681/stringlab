@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Literal, Optional, Union
 
 from app.core.schemas import BaseSchema
+from app.modules.catalogue.schemas import Complexity, VisualizationLevel
 
 
 # ---------------------------------------------------------------------------
@@ -96,3 +97,15 @@ class TraceStep(BaseSchema):
 class Trace(BaseSchema):
     steps: list[TraceStep]
     meta: TraceMeta
+
+
+# ---------------------------------------------------------------------------
+# Engine output (contract §1.4 minus persistence). The runs module wraps this
+# into a full RunResult by adding `runId` and `createdAt` once the run is saved.
+# ---------------------------------------------------------------------------
+class ComputationOutcome(BaseSchema):
+    result: dict[str, Any]
+    explanation: str
+    complexity: Complexity
+    visualization_level: VisualizationLevel
+    trace: Optional[Trace] = None
